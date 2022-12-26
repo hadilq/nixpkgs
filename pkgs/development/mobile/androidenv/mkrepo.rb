@@ -29,6 +29,46 @@ def image_url value, dir
   end
 end
 
+# Returns a JSON with the data and structure of the input xml
+def dfs_json_collector doc
+  json = {}
+  doc.element_children.each { |node|
+    if node.children.length == 1 and node.children.first.text?
+      json[node.name] ||= node.content
+      next
+    end
+    json[node.name] ||= dfs_json_collector node
+  }
+  element_attributes = {}
+  doc.attribute_nodes.each do |attr|
+    if attr.name == "type"
+      type = attr.value.split(':', 2).last
+      case attr.value
+      when 'generic:genericDetailsType'
+        element_attributes["xsi:type"] ||= "ns5:#{type}"
+      when 'addon:extraDetailsType'
+        element_attributes["xsi:type"] ||= "ns8:#{type}"
+      when 'addon:mavenType'
+        element_attributes["xsi:type"] ||= "ns8:#{type}"
+      when 'sdk:platformDetailsType'
+        element_attributes["xsi:type"] ||= "ns11:#{type}"
+      when 'sdk:sourceDetailsType'
+        element_attributes["xsi:type"] ||= "ns11:#{type}"
+      when 'sys-img:sysImgDetailsType'
+        element_attributes["xsi:type"] ||= "ns12:#{type}"
+      when 'addon:addonDetailsType' then
+        element_attributes["xsi:type"] ||= "ns8:#{type}"
+      end
+    else
+      element_attributes[attr.name] ||= attr.value
+    end
+  end
+  if !element_attributes.empty?
+    json['element-attributes'] ||= element_attributes
+  end
+  json
+end
+
 # Returns a tuple of [type, revision, revision components] for a package node.
 def package_revision package
   type_details = package.at_css('> type-details')
@@ -188,6 +228,8 @@ def parse_package_xml doc
     display_name = text package.at_css('> display-name')
     uses_license = package.at_css('> uses-license')
     uses_license &&= uses_license['ref']
+    # obtional_variables are optional because not like other properties here, which are required, they are direct parse of the XML file and in the deployer will only be used to generate XML files.
+    optional_variables = dfs_json_collector package
     archives = package_archives(package) {|url| repo_url url}
 
     target = (packages[name] ||= {})
@@ -198,6 +240,7 @@ def parse_package_xml doc
     target['revision'] ||= revision
     target['displayName'] ||= display_name
     target['license'] ||= uses_license if uses_license
+    target['optional-variables'] ||= optional_variables
     target['archives'] ||= {}
     merge target['archives'], archives
   end
@@ -217,11 +260,14 @@ def parse_image_xml doc
     display_name = text package.at_css('> display-name')
     uses_license = package.at_css('> uses-license')
     uses_license &&= uses_license['ref']
+    # obtional_variables are optional because not like other properties here, which are required, they are direct parse of the XML file and in the deployer will only be used to generate XML files.
+    optional_variables = dfs_json_collector package
     archives = package_archives(package) {|url| image_url url, components[-2]}
 
     target = images
     components.each do |component|
-      target = (target[component] ||= {})
+      target[component] ||= {}
+      target = target[component]
     end
 
     target['name'] ||= "system-image-#{revision}"
@@ -229,6 +275,7 @@ def parse_image_xml doc
     target['revision'] ||= revision
     target['displayName'] ||= display_name
     target['license'] ||= uses_license if uses_license
+    target['optional-variables'] ||= optional_variables
     target['archives'] ||= {}
     merge target['archives'], archives
   end
@@ -248,6 +295,8 @@ def parse_addon_xml doc
     display_name = text package.at_css('> display-name')
     uses_license = package.at_css('> uses-license')
     uses_license &&= uses_license['ref']
+    # obtional_variables are optional because not like other properties here, which are required, they are direct parse of the XML file and in the deployer will only be used to generate XML files.
+    optional_variables = dfs_json_collector package
     archives = package_archives(package) {|url| repo_url url}
 
     case type
@@ -277,6 +326,7 @@ def parse_addon_xml doc
     target['revision'] ||= revision
     target['displayName'] ||= display_name
     target['license'] ||= uses_license if uses_license
+    target['optional-variables'] ||= optional_variables
     target['archives'] ||= {}
     merge target['archives'], archives
   end
