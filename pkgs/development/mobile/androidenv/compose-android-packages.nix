@@ -115,9 +115,19 @@ let
   ] ++ extraLicenses);
 in
 rec {
-  deployAndroidPackage = import ./deploy-androidpackage.nix {
-    inherit stdenv unzip;
+  deployAndroidPackages = import ./deploy-androidpackages.nix {
+    inherit stdenv lib unzip mkLicenses;
   };
+  deployAndroidPackage = ({package, os ? null, buildInputs ? [], patchInstructions ? "", meta ? {}, ...}@args:
+    let
+      extraParams = removeAttrs args [ "package" "os" "buildInputs" "patchInstructions" ];
+    in
+    deployAndroidPackages ({
+      inherit os buildInputs meta;
+      packages = [ package ];
+      patchesInstructions = { "${package.name}" = patchInstructions; };
+    } // extraParams
+  ));
 
   platform-tools = import ./platform-tools.nix {
     inherit deployAndroidPackage os autoPatchelfHook pkgs lib;
