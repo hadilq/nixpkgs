@@ -81,9 +81,9 @@ let
   androidComposition = androidEnv.composeAndroidPackages sdkArgs;
   androidEmulator = pkgs.androidenv.emulateApp {
     name = "android-sdk-emulator-demo";
-    platformVersion = "30";
-    abiVersion = "x86"; # "x86_64";
-    systemImageType = "google_apis_playstore";
+    platformVersion = "33";
+    abiVersion = "x86_64";
+    systemImageType = "google_apis";
     sdkExtraArgs = sdkArgs;
   };
   androidSdk = androidComposition.androidsdk;
