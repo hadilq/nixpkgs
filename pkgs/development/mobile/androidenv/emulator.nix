@@ -1,4 +1,4 @@
-{ deployAndroidPackage, lib, package, os, autoPatchelfHook, makeWrapper, pkgs, pkgs_i686 }:
+{ deployAndroidPackage, lib, package, os, autoPatchelfHook, makeWrapper, pkgs, pkgs_i686, postInstall }:
 
 deployAndroidPackage {
   inherit package os;
@@ -45,6 +45,9 @@ deployAndroidPackage {
       ]} \
       --set QT_XKB_CONFIG_ROOT ${pkgs.xkeyboard_config}/share/X11/xkb \
       --set QTCOMPOSE ${pkgs.xorg.libX11.out}/share/X11/locale
+
+    cd $out/libexec/android-sdk
+    ${postInstall}
   '';
   dontMoveLib64 = true;
 }
