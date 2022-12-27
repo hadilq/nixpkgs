@@ -176,20 +176,31 @@ rec {
 
   system-images = lib.flatten (map (apiVersion:
     map (type:
-      map (abiVersion:
-        if lib.hasAttrByPath [apiVersion type abiVersion] system-images-packages then
-          deployAndroidPackage {
-            inherit os;
-            package = system-images-packages.${apiVersion}.${type}.${abiVersion};
-            # Patch 'google_apis' system images so they're recognized by the sdk.
-            # Without this, `android list targets` shows 'Tag/ABIs : no ABIs' instead
-            # of 'Tag/ABIs : google_apis*/*' and the emulator fails with an ABI-related error.
-            patchInstructions = lib.optionalString (lib.hasPrefix "google_apis" type) ''
+      # Deploy all system images with the same  systemImageType in one derivation to avoid a nonsense problem with
+      # avdmanager when trying to create an avd!
+      let
+        availablePackages = map (abiVersion:
+          system-images-packages.${apiVersion}.${type}.${abiVersion}
+        ) (builtins.filter (abiVersion:
+          lib.hasAttrByPath [apiVersion type abiVersion] system-images-packages
+        ) abiVersions);
+
+        instructions = builtins.listToAttrs (map (package: {
+            name = package.name;
+            value = lib.optionalString (lib.hasPrefix "google_apis" type) ''
+              # Patch 'google_apis' system images so they're recognized by the sdk.
+              # Without this, `android list targets` shows 'Tag/ABIs : no ABIs' instead
+              # of 'Tag/ABIs : google_apis*/*' and the emulator fails with an ABI-related error.
               sed -i '/^Addon.Vendor/d' source.properties
             '';
-          }
-        else []
-      ) abiVersions
+          }) availablePackages
+        );
+      in
+      deployAndroidPackages {
+        inherit os;
+        packages = availablePackages;
+        patchesInstructions = instructions;
+      }
     ) systemImageTypes
   ) platformVersions);
 
@@ -256,8 +267,8 @@ rec {
     ${lib.concatMapStrings (system-image: ''
       apiVersion=$(basename $(echo ${system-image}/libexec/android-sdk/system-images/*))
       type=$(basename $(echo ${system-image}/libexec/android-sdk/system-images/*/*))
-      mkdir -p system-images/$apiVersion/$type
-      ln -s ${system-image}/libexec/android-sdk/system-images/$apiVersion/$type/* system-images/$apiVersion/$type
+      mkdir -p system-images/$apiVersion
+      ln -s ${system-image}/libexec/android-sdk/system-images/$apiVersion/$type system-images/$apiVersion/$type
     '') images}
   '';
 
